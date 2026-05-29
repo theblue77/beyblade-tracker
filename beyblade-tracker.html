@@ -183,7 +183,8 @@
         <div class="card panel">
           <div class="toolbar">
             <h3>Storico movimenti</h3>
-            <input class="search" id="entrySearch" placeholder="Cerca persona, codice, nota">
+            <select id="entryPersonFilter"><option value="">Tutti</option></select>
+            <input class="search" id="entrySearch" placeholder="Cerca codice, nota">
           </div>
           <div style="overflow:auto"><table><thead><tr><th>Data</th><th>Persona</th><th>Tipo</th><th>Codice</th><th>Importo</th><th>Note</th><th></th></tr></thead><tbody id="entriesTable"></tbody></table></div>
         </div>
@@ -362,8 +363,18 @@ function renderPeople(){
 }
 
 function renderEntries(){
+  const sel = q('#entryPersonFilter');
+  const savedVal = sel.value;
+  if(sel.options.length - 1 !== state.people.length){
+    sel.innerHTML = '<option value="">Tutti</option>' + state.people.map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join('');
+    if([...sel.options].some(o => o.value === savedVal)) sel.value = savedVal;
+  }
+  const person = sel.value;
   const search = q('#entrySearch').value?.toLowerCase() || '';
-  const rows = state.entries.filter(e => !search || [e.person_name,e.product_code,e.notes,e.product_name].join(' ').toLowerCase().includes(search));
+  const rows = state.entries.filter(e =>
+    (!person || e.person_name === person) &&
+    (!search || [e.person_name,e.product_code,e.notes,e.product_name].join(' ').toLowerCase().includes(search))
+  );
   q('#entriesTable').innerHTML = rows.length ? rows.map(e => `
     <tr>
       <td>${escapeHtml(e.entry_date || '')}</td>
@@ -518,6 +529,7 @@ q('#resetEntryForm').onclick = () => { q('#entryForm').reset(); q('#entryId').va
 
 q('#productSearch').addEventListener('input', renderProducts);
 q('#entrySearch').addEventListener('input', renderEntries);
+q('#entryPersonFilter').addEventListener('change', renderEntries);
 
 function setView(id){
   qq('.section').forEach(x => x.classList.toggle('active', x.id === id));
