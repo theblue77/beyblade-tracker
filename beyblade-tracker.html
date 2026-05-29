@@ -1,0 +1,823 @@
+<!doctype html>
+<html lang="it" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Beyblade Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    :root,[data-theme="light"] {
+      --bg:#f7f6f2; --surface:#ffffff; --surface-2:#f1efe9; --text:#1f2328; --muted:#667085;
+      --primary:#0f766e; --primary-2:#115e59; --danger:#b42318; --danger-bg:#fee4e2;
+      --success:#166534; --success-bg:#dcfce7; --border:#d8d5cf; --shadow:0 10px 30px rgba(0,0,0,.08);
+      --radius:16px; --radius-sm:10px;
+    }
+    [data-theme="dark"] {
+      --bg:#161718; --surface:#222426; --surface-2:#2a2d30; --text:#f3f4f6; --muted:#a1a1aa;
+      --primary:#2dd4bf; --primary-2:#14b8a6; --danger:#fda29b; --danger-bg:#4a1d1c;
+      --success:#86efac; --success-bg:#1f3a28; --border:#3b3f45; --shadow:0 10px 30px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,sans-serif;background:var(--bg);color:var(--text)}
+    .app{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
+    .sidebar{background:var(--surface);border-right:1px solid var(--border);padding:20px;position:sticky;top:0;height:100vh}
+    .brand{display:flex;gap:12px;align-items:center;margin-bottom:28px}
+    .logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--primary),var(--primary-2));display:grid;place-items:center;color:#fff;font-weight:800}
+    .brand h1{font-size:20px;margin:0}.brand p{margin:2px 0 0;color:var(--muted);font-size:13px}
+    .nav{display:grid;gap:8px}.nav button{border:0;background:transparent;padding:12px 14px;border-radius:12px;text-align:left;font-weight:600;color:var(--text);cursor:pointer}
+    .nav button.active,.nav button:hover{background:var(--surface-2)}
+    .sidebar-foot{position:absolute;bottom:20px;left:20px;right:20px;display:grid;gap:10px}
+    .main{padding:26px;display:grid;gap:18px}
+    .topbar{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap}
+    .title h2{margin:0;font-size:28px}.title p{margin:6px 0 0;color:var(--muted)}
+    .actions{display:flex;gap:10px;flex-wrap:wrap}
+    button,.btn{border:1px solid var(--border);background:var(--surface);color:var(--text);padding:11px 14px;border-radius:12px;font-weight:600;cursor:pointer}
+    .btn-primary{background:var(--primary);border-color:var(--primary);color:#fff}.btn-primary:hover{background:var(--primary-2)}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+    .section{display:none}.section.active{display:block}
+    .grid{display:grid;gap:16px}.grid.kpi{grid-template-columns:repeat(4,minmax(0,1fr))}
+    .kpi-card{padding:18px}.kpi-label{font-size:13px;color:var(--muted)}.kpi-value{font-size:28px;font-weight:800;margin-top:8px}
+    .kpi-sub{margin-top:6px;font-size:13px;color:var(--muted)}
+    .panel{padding:18px}.panel h3{margin:0 0 14px 0;font-size:18px}
+    table{width:100%;border-collapse:collapse} th,td{padding:12px 10px;border-bottom:1px solid var(--border);text-align:left;font-size:14px}
+    th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+    input,select,textarea{width:100%;padding:11px 12px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:10px}
+    textarea{min-height:80px;resize:vertical}
+    .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .form-grid .full{grid-column:1/-1}
+    .toolbar{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+    .badge{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:700}
+    .badge.plus{background:var(--success-bg);color:var(--success)} .badge.minus{background:var(--danger-bg);color:var(--danger)}
+    .saldo-pos{color:var(--success);font-weight:800}.saldo-neg{color:var(--danger);font-weight:800}
+    .muted{color:var(--muted)} .small{font-size:12px}
+    .split{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
+    .empty{padding:28px;text-align:center;color:var(--muted)}
+    .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:var(--surface-2);font-size:12px}
+    .search{max-width:320px}
+    .footer-note{font-size:12px;color:var(--muted)}
+    @media (max-width: 980px){.app{grid-template-columns:1fr}.sidebar{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border)}.sidebar-foot{position:static;margin-top:18px}.grid.kpi,.split,.form-grid{grid-template-columns:1fr}.main{padding:16px}}
+    /* Admin mode */
+    .admin-only { display: none !important; }
+    body.admin-mode .admin-only { display: block !important; }
+    body.admin-mode button.admin-only,
+    body.admin-mode input.admin-only { display: inline-block !important; }
+    body.admin-mode .admin-only-flex { display: flex !important; }
+    body.admin-mode .admin-only-inline-flex { display: inline-flex !important; }
+    body:not(.admin-mode) .split > .admin-only { display: none !important; }
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">BX</div>
+      <div>
+        <h1>Beyblade Tracker</h1>
+        <p>Catalogo, movimenti, saldi</p>
+      </div>
+    </div>
+    <nav class="nav">
+      <button class="active" data-view="dashboard">Dashboard</button>
+      <button data-view="catalogo">Catalogo prodotti</button>
+      <button data-view="movimenti">Movimenti</button>
+      <button data-view="persone">Persone e saldi</button>
+      <button data-view="sql">SQL / Backup</button>
+    </nav>
+    <div class="sidebar-foot">
+      <button id="themeToggle">Tema chiaro/scuro</button>
+      <button id="loginBtn">Accedi come admin</button>
+      <div id="adminBadge" class="admin-only-flex" style="align-items:center;justify-content:space-between;gap:8px">
+        <span style="font-size:13px;font-weight:600;color:var(--primary)">Admin attivo</span>
+        <button id="logoutBtn">Esci</button>
+      </div>
+      <button id="seedBtn" class="admin-only">Carica esempio iniziale</button>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="topbar">
+      <div class="title">
+        <h2 id="pageTitle">Dashboard</h2>
+        <p id="pageDesc">Panoramica rapida di prodotti, persone e saldi.</p>
+      </div>
+      <div class="actions">
+        <button id="exportJson">Esporta JSON</button>
+        <button id="importJsonBtn" class="admin-only">Importa JSON</button>
+        <input id="importJsonInput" type="file" accept="application/json" hidden>
+        <button id="amazonImportBtn" class="admin-only">Importa ordini Amazon</button>
+        <input id="amazonFileInput" type="file" accept=".csv,text/csv" hidden>
+        <button class="btn-primary admin-only" id="quickMovementBtn">Nuovo movimento</button>
+      </div>
+    </div>
+
+    <section id="dashboard" class="section active">
+      <div class="grid kpi">
+        <div class="card kpi-card"><div class="kpi-label">Prodotti</div><div class="kpi-value" id="kpiProducts">0</div><div class="kpi-sub">voci a catalogo</div></div>
+        <div class="card kpi-card"><div class="kpi-label">Persone</div><div class="kpi-value" id="kpiPeople">0</div><div class="kpi-sub">partecipanti registrati</div></div>
+        <div class="card kpi-card"><div class="kpi-label">Movimenti</div><div class="kpi-value" id="kpiEntries">0</div><div class="kpi-sub">acquisti e rimborsi</div></div>
+        <div class="card kpi-card"><div class="kpi-label">Saldo totale</div><div class="kpi-value" id="kpiBalance">€0,00</div><div class="kpi-sub">somma netta di tutti i saldi</div></div>
+      </div>
+      <div class="split">
+        <div class="card panel">
+          <h3>Saldi per persona</h3>
+          <div id="balancesBox"></div>
+        </div>
+        <div class="card panel">
+          <h3>Ultimi movimenti</h3>
+          <div id="recentEntries"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="catalogo" class="section">
+      <div class="split">
+        <div class="card panel admin-only">
+          <h3>Aggiungi / modifica prodotto</h3>
+          <form id="productForm" class="grid">
+            <input type="hidden" id="productId">
+            <div class="form-grid">
+              <div><label>Codice</label><input id="productCode" required placeholder="AJ-MD"></div>
+              <div><label>Prezzo (€)</label><input id="productPrice" type="number" step="0.01" required placeholder="19.30"></div>
+              <div class="full"><label>Nome prodotto</label><input id="productName" required placeholder="Meteor Dragoon"></div>
+              <div class="full"><label>Fonte</label><input id="productSource" placeholder="Amazon Japan"></div>
+              <div class="full"><label>Note</label><textarea id="productNotes" placeholder="Dogana inclusa, set condiviso, ecc."></textarea></div>
+            </div>
+            <div class="actions">
+              <button class="btn-primary" type="submit">Salva prodotto</button>
+              <button type="button" id="resetProductForm">Pulisci</button>
+            </div>
+          </form>
+        </div>
+        <div class="card panel">
+          <div class="toolbar">
+            <h3>Catalogo</h3>
+            <input class="search" id="productSearch" placeholder="Cerca codice o nome">
+          </div>
+          <div style="overflow:auto"><table><thead><tr><th>Codice</th><th>Nome</th><th>Fonte</th><th>Prezzo</th><th></th></tr></thead><tbody id="productsTable"></tbody></table></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="movimenti" class="section">
+      <div class="split">
+        <div class="card panel admin-only">
+          <h3>Aggiungi movimento</h3>
+          <form id="entryForm" class="grid">
+            <input type="hidden" id="entryId">
+            <div class="form-grid">
+              <div><label>Persona</label><select id="entryPerson" required></select></div>
+              <div><label>Tipo</label><select id="entryType" required><option value="ACQUISTO">ACQUISTO (+)</option><option value="RIMBORSO">RIMBORSO (-)</option></select></div>
+              <div><label>Codice prodotto</label><select id="entryProductCode"><option value="">-- manuale / nessuno --</option></select></div>
+              <div><label>Importo manuale (€)</label><input id="entryAmount" type="number" step="0.01" placeholder="Lascia vuoto per usare il prezzo del catalogo"></div>
+              <div class="full"><label>Note</label><textarea id="entryNotes" placeholder="es. reso parziale, spedizione, leon, dran..."></textarea></div>
+              <div><label>Data</label><input id="entryDate" type="date"></div>
+            </div>
+            <div class="actions">
+              <button class="btn-primary" type="submit">Salva movimento</button>
+              <button type="button" id="resetEntryForm">Pulisci</button>
+            </div>
+            <div class="footer-note">Se scegli un codice prodotto e lasci vuoto l'importo manuale, il sistema usa il prezzo del catalogo.</div>
+          </form>
+        </div>
+        <div class="card panel">
+          <div class="toolbar">
+            <h3>Storico movimenti</h3>
+            <input class="search" id="entrySearch" placeholder="Cerca persona, codice, nota">
+          </div>
+          <div style="overflow:auto"><table><thead><tr><th>Data</th><th>Persona</th><th>Tipo</th><th>Codice</th><th>Importo</th><th>Note</th><th></th></tr></thead><tbody id="entriesTable"></tbody></table></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="persone" class="section">
+      <div class="split">
+        <div class="card panel admin-only">
+          <h3>Aggiungi persona</h3>
+          <form id="personForm" class="grid">
+            <input type="hidden" id="personId">
+            <div class="form-grid">
+              <div><label>Nome</label><input id="personName" required placeholder="Lollo"></div>
+              <div><label>Note</label><input id="personNotes" placeholder="amico, quote condivise, ecc."></div>
+            </div>
+            <div class="actions">
+              <button class="btn-primary" type="submit">Salva persona</button>
+              <button type="button" id="resetPersonForm">Pulisci</button>
+            </div>
+          </form>
+        </div>
+        <div class="card panel">
+          <h3>Saldi</h3>
+          <div style="overflow:auto"><table><thead><tr><th>Persona</th><th>Acquisti</th><th>Rimborsi</th><th>Saldo netto</th><th></th></tr></thead><tbody id="peopleTable"></tbody></table></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="sql" class="section">
+      <div class="card panel">
+        <h3>Backup dati</h3>
+        <p style="color:var(--muted);font-size:14px">Esporta tutti i dati come JSON per backup o importazione futura. Per query SQL avanzate usa il dashboard Supabase.</p>
+        <div class="actions" style="margin-top:10px">
+          <button id="exportJson2">Esporta JSON</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="loginModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;place-items:center;">
+  <div class="card" style="padding:24px;max-width:340px;width:100%;margin:16px">
+    <h3 style="margin:0 0 16px">Accesso admin</h3>
+    <label style="font-size:13px;font-weight:600">Password</label>
+    <input type="password" id="loginPassword" style="margin-top:6px" autocomplete="current-password" placeholder="••••••••">
+    <div id="loginError" style="color:var(--danger);font-size:13px;margin-top:8px;display:none"></div>
+    <div class="actions" style="margin-top:16px">
+      <button class="btn-primary" id="loginSubmit">Accedi</button>
+      <button id="loginCancel">Annulla</button>
+    </div>
+  </div>
+</div>
+
+<div id="amazonModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;overflow-y:auto;padding:20px">
+  <div class="card" style="max-width:960px;margin:auto;padding:24px">
+    <h3 style="margin:0 0 16px">Importa ordini Amazon</h3>
+    <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px">
+      <div>
+        <label style="font-size:13px;font-weight:600">Attribuisci acquisti a</label>
+        <select id="amazonPerson" style="margin-top:6px"></select>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button id="amazonSelectAll">Seleziona tutti</button>
+        <button id="amazonDeselectAll">Deseleziona tutti</button>
+      </div>
+    </div>
+    <div style="overflow:auto">
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>ASIN</th>
+            <th>Nome prodotto</th>
+            <th>Qty</th>
+            <th>Importo</th>
+            <th>Codice prodotto</th>
+          </tr>
+        </thead>
+        <tbody id="amazonPreviewRows"></tbody>
+      </table>
+    </div>
+    <div id="amazonEmpty" class="empty" style="display:none">Nessuna riga rilevata nel CSV.</div>
+    <div class="actions" style="margin-top:16px">
+      <button class="btn-primary" id="amazonConfirmBtn">Importa selezionati</button>
+      <button id="amazonCancelBtn">Annulla</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://tyzpzxsgzhwgleqkqkca.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5enB6eHNnemh3Z2xlcWtxa2NhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwNDE5NjcsImV4cCI6MjA5NTYxNzk2N30.X3R6fTq2XeqCkn5WoPvBAw8aw900kma6Y0JjZ-1wsuo';               // sostituisci con la tua anon key
+const ADMIN_EMAIL = 'lucci.manuel@yahoo.it';
+
+const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const state = { products: [], people: [], entries: [] };
+let isAdmin = false;
+
+const euro = n => new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR'}).format(Number(n||0));
+const today = () => new Date().toISOString().slice(0,10);
+const q = s => document.querySelector(s);
+const qq = s => [...document.querySelectorAll(s)];
+
+
+async function refreshState(){
+  const [productsRes, peopleRes, entriesRes] = await Promise.all([
+    supa.from('products').select('*').order('code'),
+    supa.from('people').select('*').order('name'),
+    supa.from('entries')
+      .select('*, people(name), products(name)')
+      .order('entry_date', { ascending: false, nullsFirst: false })
+      .order('id', { ascending: false })
+  ]);
+  if(productsRes.error) throw productsRes.error;
+  if(peopleRes.error)   throw peopleRes.error;
+  if(entriesRes.error)  throw entriesRes.error;
+  state.products = productsRes.data || [];
+  state.people   = peopleRes.data   || [];
+  state.entries  = (entriesRes.data || []).map(e => ({
+    ...e,
+    person_name:  e.people?.name   || '',
+    product_name: e.products?.name || ''
+  }));
+}
+
+async function refreshAll(){
+  await refreshState();
+  renderProducts();
+  renderPeopleSelects();
+  renderPeople();
+  renderEntries();
+  renderDashboard();
+}
+
+function renderProducts(){
+  const search = q('#productSearch').value?.toLowerCase() || '';
+  const rows = state.products.filter(p => !search || [p.code,p.name,p.source,p.notes].join(' ').toLowerCase().includes(search));
+  q('#productsTable').innerHTML = rows.length ? rows.map(p => `
+    <tr>
+      <td><strong>${escapeHtml(p.code)}</strong></td>
+      <td>${escapeHtml(p.name)}</td>
+      <td>${escapeHtml(p.source||'')}</td>
+      <td>${euro(p.price)}</td>
+      <td><button onclick="editProduct(${p.id})">Modifica</button> <button onclick="deleteProduct(${p.id})">Elimina</button></td>
+    </tr>`).join('') : `<tr><td colspan="5" class="empty">Nessun prodotto.</td></tr>`;
+  const opts = ['<option value="">-- manuale / nessuno --</option>'].concat(state.products.map(p => `<option value="${escapeAttr(p.code)}">${escapeHtml(p.code)} — ${escapeHtml(p.name)} (${euro(p.price)})</option>`));
+  q('#entryProductCode').innerHTML = opts.join('');
+}
+
+function renderPeopleSelects(){
+  const opts = state.people.length ? state.people.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('') : '<option value="">-- nessuna persona --</option>';
+  q('#entryPerson').innerHTML = opts;
+}
+
+function getPersonBalances(){
+  return state.people.map(p => {
+    const pe = state.entries.filter(e => Number(e.person_id) === Number(p.id));
+    const acquisti = pe.filter(e => e.entry_type === 'ACQUISTO').reduce((s, e) => s + Number(e.amount), 0);
+    const rimborsi = pe.filter(e => e.entry_type === 'RIMBORSO').reduce((s, e) => s + Number(e.amount), 0);
+    return { ...p, acquisti, rimborsi, saldo: acquisti - rimborsi };
+  });
+}
+
+function renderPeople(){
+  const rows = getPersonBalances();
+  q('#peopleTable').innerHTML = rows.length ? rows.map(p => `
+    <tr>
+      <td><strong>${escapeHtml(p.name)}</strong></td>
+      <td>${euro(p.acquisti)}</td>
+      <td>${euro(p.rimborsi)}</td>
+      <td class="${Number(p.saldo)>=0?'saldo-pos':'saldo-neg'}">${euro(p.saldo)}</td>
+      <td><button onclick="editPerson(${p.id})">Modifica</button> <button onclick="deletePerson(${p.id})">Elimina</button></td>
+    </tr>`).join('') : `<tr><td colspan="5" class="empty">Nessuna persona.</td></tr>`;
+}
+
+function renderEntries(){
+  const search = q('#entrySearch').value?.toLowerCase() || '';
+  const rows = state.entries.filter(e => !search || [e.person_name,e.product_code,e.notes,e.product_name].join(' ').toLowerCase().includes(search));
+  q('#entriesTable').innerHTML = rows.length ? rows.map(e => `
+    <tr>
+      <td>${escapeHtml(e.entry_date || '')}</td>
+      <td>${escapeHtml(e.person_name)}</td>
+      <td><span class="badge ${e.entry_type==='ACQUISTO'?'plus':'minus'}">${e.entry_type}</span></td>
+      <td>${escapeHtml(e.product_code || '')}</td>
+      <td>${euro(e.amount)}</td>
+      <td>${escapeHtml(e.notes || '')}</td>
+      <td><button onclick="editEntry(${e.id})">Modifica</button> <button onclick="deleteEntry(${e.id})">Elimina</button></td>
+    </tr>`).join('') : `<tr><td colspan="7" class="empty">Nessun movimento.</td></tr>`;
+}
+
+function renderDashboard(){
+  const balances = getPersonBalances();
+  q('#kpiProducts').textContent = state.products.length;
+  q('#kpiPeople').textContent = state.people.length;
+  q('#kpiEntries').textContent = state.entries.length;
+  q('#kpiBalance').textContent = euro(balances.reduce((a,b)=>a+Number(b.saldo),0));
+
+  q('#balancesBox').innerHTML = balances.length ? balances.map(p => `
+    <div style="display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)">
+      <div><strong>${escapeHtml(p.name)}</strong><div class="small muted">Acquisti ${euro(p.acquisti)} · Rimborsi ${euro(p.rimborsi)}</div></div>
+      <div class="${Number(p.saldo)>=0?'saldo-pos':'saldo-neg'}">${euro(p.saldo)}</div>
+    </div>`).join('') : `<div class="empty">Nessuna persona inserita.</div>`;
+
+  const recent = state.entries.slice(0,8);
+  q('#recentEntries').innerHTML = recent.length ? recent.map(e => `
+    <div style="padding:12px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;gap:10px"><strong>${escapeHtml(e.person_name)}</strong><span class="badge ${e.entry_type==='ACQUISTO'?'plus':'minus'}">${e.entry_type}</span></div>
+      <div class="small muted" style="margin-top:4px">${escapeHtml(e.product_code || 'manuale')} · ${escapeHtml(e.entry_date || '')}</div>
+      <div style="margin-top:6px;font-weight:700">${euro(e.amount)}</div>
+    </div>`).join('') : `<div class="empty">Nessun movimento recente.</div>`;
+}
+
+function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]))}
+function escapeAttr(s){return escapeHtml(s)}
+
+function editProduct(id){
+  const p = state.products.find(x => x.id == id); if(!p) return;
+  q('#productId').value = p.id; q('#productCode').value = p.code; q('#productName').value = p.name; q('#productSource').value = p.source||''; q('#productPrice').value = p.price; q('#productNotes').value = p.notes||'';
+  setView('catalogo');
+}
+async function deleteProduct(id){
+  if(!confirm('Eliminare questo prodotto?')) return;
+  const { error } = await supa.from('products').delete().eq('id', id);
+  if(error) return alert('Errore: ' + error.message);
+  await refreshAll();
+}
+function editPerson(id){
+  const p = state.people.find(x => x.id == id); if(!p) return;
+  q('#personId').value = p.id; q('#personName').value = p.name; q('#personNotes').value = p.notes||'';
+  setView('persone');
+}
+async function deletePerson(id){
+  const cnt = state.entries.filter(e => Number(e.person_id) === Number(id)).length;
+  if(cnt > 0){ alert('Non puoi eliminare una persona con movimenti collegati.'); return; }
+  if(!confirm('Eliminare questa persona?')) return;
+  const { error } = await supa.from('people').delete().eq('id', id);
+  if(error) return alert('Errore: ' + error.message);
+  await refreshAll();
+}
+function editEntry(id){
+  const e = state.entries.find(x => x.id == id); if(!e) return;
+  q('#entryId').value = e.id; q('#entryPerson').value = e.person_id; q('#entryType').value = e.entry_type; q('#entryProductCode').value = e.product_code || ''; q('#entryAmount').value = e.amount; q('#entryNotes').value = e.notes || ''; q('#entryDate').value = e.entry_date || today();
+  setView('movimenti');
+}
+async function deleteEntry(id){
+  if(!confirm('Eliminare questo movimento?')) return;
+  const { error } = await supa.from('entries').delete().eq('id', id);
+  if(error) return alert('Errore: ' + error.message);
+  await refreshAll();
+}
+
+q('#productForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const id    = q('#productId').value;
+  const code  = q('#productCode').value.trim();
+  const name  = q('#productName').value.trim();
+  const source = q('#productSource').value.trim();
+  const price = Number(q('#productPrice').value);
+  const notes = q('#productNotes').value.trim();
+  try {
+    if(id){
+      const { error } = await supa.from('products').update({ code, name, source, price, notes }).eq('id', id);
+      if(error) throw error;
+    } else {
+      const { error } = await supa.from('products').insert({ code, name, source, price, notes });
+      if(error) throw error;
+    }
+    q('#productForm').reset();
+    q('#productId').value = '';
+    await refreshAll();
+  } catch(err){ alert('Errore salvataggio prodotto: ' + err.message); }
+});
+q('#resetProductForm').onclick = () => { q('#productForm').reset(); q('#productId').value=''; };
+
+q('#personForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const id    = q('#personId').value;
+  const name  = q('#personName').value.trim();
+  const notes = q('#personNotes').value.trim();
+  try {
+    if(id){
+      const { error } = await supa.from('people').update({ name, notes }).eq('id', id);
+      if(error) throw error;
+    } else {
+      const { error } = await supa.from('people').insert({ name, notes });
+      if(error) throw error;
+    }
+    q('#personForm').reset();
+    q('#personId').value = '';
+    await refreshAll();
+  } catch(err){ alert('Errore salvataggio persona: ' + err.message); }
+});
+q('#resetPersonForm').onclick = () => { q('#personForm').reset(); q('#personId').value=''; };
+
+q('#entryForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const id       = q('#entryId').value;
+  const personId = Number(q('#entryPerson').value);
+  const type     = q('#entryType').value;
+  const code     = q('#entryProductCode').value || null;
+  const product  = code ? state.products.find(p => p.code === code) : null;
+  const manual   = q('#entryAmount').value === '' ? null : Number(q('#entryAmount').value);
+  const amount   = manual ?? (product ? Number(product.price) : null);
+  if(!personId) return alert('Seleziona una persona.');
+  if(amount == null || Number.isNaN(amount)) return alert('Inserisci un importo manuale o seleziona un prodotto valido.');
+  const payload = {
+    person_id:    personId,
+    product_id:   product ? product.id : null,
+    product_code: code,
+    entry_type:   type,
+    amount,
+    notes:      q('#entryNotes').value.trim(),
+    entry_date: q('#entryDate').value || today()
+  };
+  try {
+    if(id){
+      const { error } = await supa.from('entries').update(payload).eq('id', id);
+      if(error) throw error;
+    } else {
+      const { error } = await supa.from('entries').insert(payload);
+      if(error) throw error;
+    }
+    q('#entryForm').reset();
+    q('#entryId').value = '';
+    q('#entryDate').value = today();
+    await refreshAll();
+  } catch(err){ alert('Errore salvataggio movimento: ' + err.message); }
+});
+q('#resetEntryForm').onclick = () => { q('#entryForm').reset(); q('#entryId').value=''; q('#entryDate').value=today(); };
+
+q('#productSearch').addEventListener('input', renderProducts);
+q('#entrySearch').addEventListener('input', renderEntries);
+
+function setView(id){
+  qq('.section').forEach(x => x.classList.toggle('active', x.id === id));
+  qq('.nav button').forEach(x => x.classList.toggle('active', x.dataset.view === id));
+  const meta = {
+    dashboard:['Dashboard','Panoramica rapida di prodotti, persone e saldi.'],
+    catalogo:['Catalogo prodotti','Gestisci un solo catalogo centrale con codici e prezzi.'],
+    movimenti:['Movimenti','Registra acquisti e rimborsi per persona.'],
+    persone:['Persone e saldi','Controlla quanto deve ciascuno o quanto devi tu.'],
+    sql:['SQL / Backup','Esegui query di lettura ed esporta il database locale.']
+  }[id];
+  q('#pageTitle').textContent = meta[0]; q('#pageDesc').textContent = meta[1];
+}
+qq('.nav button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+q('#quickMovementBtn').onclick = () => setView('movimenti');
+
+q('#themeToggle').onclick = () => {
+  const t = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+};
+
+q('#exportJson').onclick = () => {
+  const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'beyblade-tracker-backup.json'; a.click();
+  URL.revokeObjectURL(a.href);
+};
+q('#exportJson2').onclick = () => q('#exportJson').click();
+q('#importJsonBtn').onclick = () => q('#importJsonInput').click();
+q('#importJsonInput').addEventListener('change', async e => {
+  const f = e.target.files[0]; if(!f) return;
+  try{
+    const json = JSON.parse(await f.text());
+    if(!confirm('Questo sovrascriverà i dati attuali. Continuare?')) return;
+    const { error: e1 } = await supa.from('entries').delete().neq('id', 0);
+    if(e1) throw e1;
+    const { error: e2 } = await supa.from('products').delete().neq('id', 0);
+    if(e2) throw e2;
+    const { error: e3 } = await supa.from('people').delete().neq('id', 0);
+    if(e3) throw e3;
+
+    if(json.people?.length){
+      const { error } = await supa.from('people').insert(json.people.map(p => ({ name: p.name, notes: p.notes || '' })));
+      if(error) throw error;
+    }
+    if(json.products?.length){
+      const { error } = await supa.from('products').insert(json.products.map(p => ({ code: p.code, name: p.name, source: p.source || '', price: Number(p.price), notes: p.notes || '' })));
+      if(error) throw error;
+    }
+    await refreshState();
+    const peopleMap = Object.fromEntries(state.people.map(p  => [p.name, p.id]));
+    const prodMap   = Object.fromEntries(state.products.map(p => [p.code, p.id]));
+
+    if(json.entries?.length){
+      const { error } = await supa.from('entries').insert(json.entries.map(en => ({
+        person_id:    peopleMap[en.person_name] || en.person_id,
+        product_id:   prodMap[en.product_code]  || null,
+        product_code: en.product_code  || null,
+        entry_type:   en.entry_type,
+        amount:       Number(en.amount),
+        notes:        en.notes      || '',
+        entry_date:   en.entry_date || null
+      })));
+      if(error) throw error;
+    }
+    await refreshAll();
+    alert('Import completato.');
+  } catch(err){ alert('Errore import: ' + err.message); }
+  e.target.value = '';
+});
+
+q('#seedBtn').onclick = async () => {
+  if(state.products.length || state.people.length || state.entries.length){
+    if(!confirm('I dati attuali rimarranno. Vuoi aggiungere comunque l\'esempio?')) return;
+  }
+  try {
+    const peopleNames = ['Lollo','Toni','Trodo'];
+    for(const name of peopleNames){
+      await supa.from('people').upsert({ name, notes: '' }, { onConflict: 'name', ignoreDuplicates: true });
+    }
+    const products = [
+      { code:'AJ-MD',   name:'Meteor Dragoon',       source:'Amazon Japan', price:19.30, notes:'' },
+      { code:'AJ-SSS',  name:'Shark Set',             source:'Amazon Japan', price:32.50, notes:'' },
+      { code:'AJ-A',    name:'Arena CX-04',           source:'Amazon Japan', price:80,    notes:'' },
+      { code:'AJ-FF',   name:'Fenici Flare',          source:'Amazon Japan', price:14,    notes:'' },
+      { code:'AJ-DG',   name:'Driger Grigio',         source:'Amazon Japan', price:9.60,  notes:'' },
+      { code:'GK-JL2',  name:'Japan League X2',       source:'GachaKawa',   price:71.85, notes:'' },
+      { code:'GK-OC',   name:'Orochi Cluster',        source:'GachaKawa',   price:39.66, notes:'' },
+      { code:'AJ-B48',  name:'Booster Colorati',      source:'Amazon Japan', price:15.65, notes:'' },
+      { code:'TT-APR',  name:'Aero Pegasus Red',      source:'TakaraTomy+Tenso', price:24.30, notes:'' },
+      { code:'M-SA',    name:'Spesa Agorà',           source:'Misti',       price:8.63,  notes:'' },
+      { code:'M-SA2',   name:'Spesa Agorà 2',         source:'Misti',       price:6,     notes:'' },
+      { code:'AJ-TCXE', name:'Trio CX Expand',        source:'Amazon Japan', price:46.40, notes:'' },
+      { code:'AB',      name:'Action Bey',            source:'Action',      price:5,     notes:'' }
+    ];
+    for(const p of products){
+      await supa.from('products').upsert(p, { onConflict: 'code', ignoreDuplicates: true });
+    }
+    await refreshState();
+    const pmap = Object.fromEntries(state.people.map(x  => [x.name, x.id]));
+    const gmap = Object.fromEntries(state.products.map(x => [x.code, x]));
+    const t = today();
+    const sample = [
+      { person_id:pmap['Lollo'], product_id:gmap['AJ-A'].id,   product_code:'AJ-A',   entry_type:'ACQUISTO', amount:80,    notes:'', entry_date:t },
+      { person_id:pmap['Lollo'], product_id:null,               product_code:null,     entry_type:'RIMBORSO', amount:125,   notes:'Rimborso iniziale', entry_date:t },
+      { person_id:pmap['Lollo'], product_id:gmap['AJ-SSS'].id,  product_code:'AJ-SSS', entry_type:'ACQUISTO', amount:32.5,  notes:'', entry_date:t },
+      { person_id:pmap['Lollo'], product_id:gmap['AJ-MD'].id,   product_code:'AJ-MD',  entry_type:'ACQUISTO', amount:19.3,  notes:'', entry_date:t },
+      { person_id:pmap['Lollo'], product_id:gmap['AJ-MD'].id,   product_code:'AJ-MD',  entry_type:'ACQUISTO', amount:19.3,  notes:'', entry_date:t },
+      { person_id:pmap['Lollo'], product_id:null,               product_code:null,     entry_type:'RIMBORSO', amount:32,    notes:'Rimborso', entry_date:t },
+      { person_id:pmap['Toni'],  product_id:gmap['AJ-MD'].id,   product_code:'AJ-MD',  entry_type:'ACQUISTO', amount:19.3,  notes:'', entry_date:t },
+      { person_id:pmap['Trodo'], product_id:gmap['TT-APR'].id,  product_code:'TT-APR', entry_type:'ACQUISTO', amount:24.3,  notes:'', entry_date:t }
+    ];
+    const { error } = await supa.from('entries').insert(sample);
+    if(error) throw error;
+    await refreshAll();
+  } catch(err){ alert('Errore seed: ' + err.message); }
+};
+
+window.editProduct = editProduct; window.deleteProduct = deleteProduct; window.editPerson = editPerson; window.deletePerson = deletePerson; window.editEntry = editEntry; window.deleteEntry = deleteEntry;
+
+function updateAdminUI(){
+  document.body.classList.toggle('admin-mode', isAdmin);
+  q('#loginBtn').style.display = isAdmin ? 'none' : '';
+}
+
+q('#loginBtn').onclick = () => {
+  q('#loginPassword').value = '';
+  q('#loginError').style.display = 'none';
+  q('#loginModal').style.display = 'grid';
+  setTimeout(() => q('#loginPassword').focus(), 50);
+};
+q('#loginCancel').onclick = () => { q('#loginModal').style.display = 'none'; };
+q('#loginModal').addEventListener('click', e => {
+  if(e.target === q('#loginModal')) q('#loginModal').style.display = 'none';
+});
+q('#loginPassword').addEventListener('keydown', e => { if(e.key === 'Enter') q('#loginSubmit').click(); });
+
+q('#loginSubmit').onclick = async () => {
+  const password = q('#loginPassword').value;
+  q('#loginError').style.display = 'none';
+  const { error } = await supa.auth.signInWithPassword({ email: ADMIN_EMAIL, password });
+  if(error){
+    q('#loginError').textContent = (error.status === 400 || error.status === 422) ? 'Password errata.' : ('Errore di accesso: ' + error.message);
+    q('#loginError').style.display = 'block';
+    return;
+  }
+  isAdmin = true;
+  updateAdminUI();
+  q('#loginModal').style.display = 'none';
+};
+
+q('#logoutBtn').onclick = async () => {
+  await supa.auth.signOut();
+  isAdmin = false;
+  updateAdminUI();
+};
+
+function normalizeAmazonDate(s){
+  if(!s) return null;
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0,10);
+  const us = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(us) return `${us[3]}-${us[1].padStart(2,'0')}-${us[2].padStart(2,'0')}`;
+  const d = new Date(s);
+  if(!isNaN(d.getTime())) return d.toISOString().substring(0,10);
+  return null;
+}
+
+function parseCSVLine(line){
+  const result = []; let cur = ''; let inQ = false;
+  for(let i = 0; i < line.length; i++){
+    if(line[i] === '"'){
+      if(inQ && line[i+1] === '"'){ cur += '"'; i++; }
+      else { inQ = !inQ; }
+    } else if(line[i] === ',' && !inQ){ result.push(cur.trim()); cur = ''; }
+    else { cur += line[i]; }
+  }
+  result.push(cur.trim());
+  return result;
+}
+
+function parseCSV(text){
+  const lines = text.trim().split(/\r?\n/);
+  if(lines.length < 2) return [];
+  const headers = parseCSVLine(lines[0]);
+  return lines.slice(1).filter(l => l.trim()).map(line => {
+    const vals = parseCSVLine(line);
+    return Object.fromEntries(headers.map((h, i) => [h.trim().replace(/"/g,''), vals[i] ?? '']));
+  });
+}
+
+function mapAmazonRow(row){
+  const get = (...keys) => { for(const k of keys){ const v = row[k]; if(v != null && v !== '') return String(v).replace(/"/g,'').trim(); } return ''; };
+  const amountRaw = get('Item Total','Totale articolo','Payment Amount/Item Subtotal','item total','Amount','Importo','amount');
+  const amtClean = amountRaw.replace(/[^0-9.,]/g,'');
+  const amount = amtClean.match(/\d\.\d{3}[,]\d/)
+    ? parseFloat(amtClean.replace(/\./g,'').replace(',','.'))
+    : parseFloat(amtClean.replace(',','.')) || 0;
+  return {
+    orderId:  get('Order ID','Numero ordine','order id'),
+    date:     get('Order Date','Data ordine','order date'),
+    name:     get('Title','Product Name','Titolo','Product name','title'),
+    asin:     get('ASIN','ASIN/ISBN','asin'),
+    quantity: parseInt(get('Quantity','Quantità','quantity') || '1') || 1,
+    amount
+  };
+}
+
+let amazonRows = [];
+
+q('#amazonImportBtn').onclick = () => q('#amazonFileInput').click();
+
+q('#amazonFileInput').addEventListener('change', async e => {
+  const f = e.target.files[0]; if(!f) return;
+  e.target.value = '';
+  const text = await f.text();
+  const rawRows = parseCSV(text);
+  amazonRows = rawRows.map(mapAmazonRow).filter(r => r.amount > 0);
+
+  q('#amazonPerson').innerHTML = state.people.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+
+  q('#amazonPreviewRows').innerHTML = amazonRows.length ? amazonRows.map((r, i) => {
+    const existing = state.products.find(p => p.code === r.asin);
+    const suggestedCode = existing ? escapeAttr(existing.code) : escapeAttr(r.asin || `AMZ-${i}`);
+    return `<tr>
+      <td><input type="checkbox" class="amazon-chk" data-idx="${i}" checked></td>
+      <td><span class="pill">${escapeHtml(r.asin)}</span></td>
+      <td style="max-width:280px;word-break:break-word">${escapeHtml(r.name)}</td>
+      <td>${escapeHtml(String(r.quantity))}</td>
+      <td>${euro(r.amount)}</td>
+      <td><input class="amazon-code" data-idx="${i}" value="${suggestedCode}" style="width:120px;padding:6px 8px"></td>
+    </tr>`;
+  }).join('') : '';
+
+  q('#amazonEmpty').style.display = amazonRows.length ? 'none' : 'block';
+  q('#amazonModal').style.display = 'block';
+});
+
+q('#amazonSelectAll').onclick   = () => qq('.amazon-chk').forEach(c => c.checked = true);
+q('#amazonDeselectAll').onclick = () => qq('.amazon-chk').forEach(c => c.checked = false);
+q('#amazonCancelBtn').onclick   = () => { q('#amazonModal').style.display = 'none'; };
+
+q('#amazonConfirmBtn').onclick = async () => {
+  const personId = Number(q('#amazonPerson').value);
+  if(!personId) return alert('Seleziona una persona.');
+  const selected = qq('.amazon-chk').filter(c => c.checked).map(c => Number(c.dataset.idx));
+  if(!selected.length) return alert('Seleziona almeno una riga.');
+
+  try {
+    for(const idx of selected){
+      const r    = amazonRows[idx];
+      const code = q(`.amazon-code[data-idx="${idx}"]`).value.trim() || r.asin || `AMZ-${idx}`;
+
+      const existing = state.products.find(p => p.code === code);
+      if(!existing){
+        const { error } = await supa.from('products').insert({ code, name: r.name || code, source: 'Amazon', price: r.amount, notes: r.asin ? `ASIN: ${r.asin}` : '' });
+        if(error && !error.message.includes('unique')) throw error;
+      }
+    }
+    await refreshState();
+    const prodMap = Object.fromEntries(state.products.map(p => [p.code, p.id]));
+
+    const entries = selected.map(idx => {
+      const r    = amazonRows[idx];
+      const code = q(`.amazon-code[data-idx="${idx}"]`).value.trim() || r.asin || `AMZ-${idx}`;
+      return {
+        person_id:    personId,
+        product_id:   prodMap[code] || null,
+        product_code: code,
+        entry_type:   'ACQUISTO',
+        amount:       r.amount,
+        notes:        r.name ? r.name.substring(0, 200) : '',
+        entry_date:   normalizeAmazonDate(r.date) || today()
+      };
+    });
+
+    const { error } = await supa.from('entries').insert(entries);
+    if(error) throw error;
+
+    await refreshAll();
+    q('#amazonModal').style.display = 'none';
+    alert(`${selected.length} moviment${selected.length > 1 ? 'i' : 'o'} importat${selected.length > 1 ? 'i' : 'o'}.`);
+  } catch(err){ alert('Errore import: ' + err.message); }
+};
+
+async function init(){
+  supa.auth.onAuthStateChange((_event, session) => {
+    isAdmin = !!session;
+  });
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    isAdmin = !!session;
+    updateAdminUI();
+    q('#entryDate').value = today();
+    await refreshAll();
+  } catch(err){
+    console.error('Errore inizializzazione:', err);
+    document.body.innerHTML = `<div style="padding:40px;text-align:center;font-family:sans-serif"><h2>Errore di connessione</h2><p style="color:#667085">Impossibile raggiungere il database. Controlla SUPABASE_URL e SUPABASE_ANON_KEY nel file HTML.</p><pre style="font-size:12px;color:#b42318">${err.message}</pre></div>`;
+  }
+}
+
+init();</script>
+</body>
+</html>
